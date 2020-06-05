@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
+from PIL import Image
 from IPython import display
 
 # Inputs
@@ -125,63 +126,6 @@ def eigenanalysis(H, matrixName):
     plt.xlabel('|Eigenvalue| Bins')
     plt.show()
 
-# Inputs
-#  `H`: Mask matrix
-#  `numCalibrationMeasurements`: # of measurements to take with a black projection
-# Outputs
-#  `HWithOffsetCalibration`: H with `numCalibrationMeasurements` rows of 0's added at the top
-#                            (don't change!)
-def addOffsetCalibrationToH(H, numCalibrationMeasurements = 32):
-    numColumns = H.shape[1]
-    # Append `numCalibrationMeasurements` rows of 0's to H
-    HWithOffsetCalibration = np.append(
-        [[0] * numColumns] * numCalibrationMeasurements,
-        H,
-        axis = 0
-    )
-    return HWithOffsetCalibration;
-
-# Inputs
-#  `sWithOffsetCalibration`: Original s with `numCalibrationMeasurements` rows
-#                            of offset measurements at the top
-#  `numCalibrationMeasurements`: # of measurements taken with a black projection
-#                                (don't change!)
-# Outputs
-#  `oest`: Estimate of ambient offset
-#  `s`: Original sensor reading vector
-def getOffsetEstimateAndS(sWithOffsetCalibration, numCalibrationMeasurements = 32):
-    # Get an estimate of the offset by averaging the first
-    # `numCalibrationMeasurements` rows of the input `sWithOffsetCalibration`
-    oest = np.mean(sWithOffsetCalibration[:numCalibrationMeasurements])
-    # Get the original sensor reading vector (without offset calibration rows)
-    s = sWithOffsetCalibration[numCalibrationMeasurements:]
-    return oest, s
-
-# Inputs
-#  `mysteryH`: mysteryH mask matrix
-def splitMysteryHRow0(mysteryH):
-    numCols = mysteryH.shape[1]
-    # Break row 0 into 2 rows (0a, 0b), each with half as many illuminated pixels as the original row 0.
-    checkerBoard0 = np.tile([0, 1], int(numCols / 2))
-    checkerBoard1 = np.tile([1, 0], int(numCols / 2))
-    mysteryHRow0Split = np.append([checkerBoard1], mysteryH[1:], axis = 0)
-    mysteryHRow0Split = np.append([checkerBoard0], mysteryHRow0Split, axis = 0)
-    # Output has 1 more row than before
-    return mysteryHRow0Split;
-
-# Inputs
-#  `matrix`: mask matrix
-#  `matrixName`: name of the mask matrix, will prefix the file name (mysteryH is a special name)
-def packageMaskMatrix(matrix, matrixName):
-    # Save `matrix` to a file named `matrixName` for restoration purposes
-    np.save(matrixName + '.npy', matrix)
-    if (matrixName == "mysteryH"):
-        # Split row 0 of `mysteryH` for nonlinearity compensation (matches on name)
-        matrix = splitMysteryHRow0(matrix)
-    # Add additional rows (default = 32) to the top of `matrix` for offset calibration
-    matrix = addOffsetCalibrationToH(H = matrix)
-    # Save packaged `matrix`
-    np.save(matrixName + '_packaged.npy', matrix)
 
 # Inputs
 #  `numCols`: Number of columns needed
@@ -207,39 +151,7 @@ def generateLinearityMatrix(numCols):
 
     np.save('LinearityMatrix.npy', linearityMatrix)
 
-# Inputs
-#  `nonlinearityThreshold`: Threshold above which sensor saturates
-# Outputs
-#  `brightness`: Ideal projector brightness
-def getIdealBrightness(nonlinearityThreshold = 3300):
-    # Duplicated from `generateLinearityMatrix
-    brightnesses = range(10, 102, 2)
 
-    sr = np.load('sensor_readingsLinearityMatrix_100_0.npy')
-
-    # Average the measurements taken (when one half of the pixels are illuminated vs. the other)
-    avgSr = (sr[::2] + sr[1::2]) / 2
-    # Get the brightness indices such that the sensor output is less than `nonlinearityThreshold`
-    validBrightnessIndices = np.where(avgSr < nonlinearityThreshold)[0]
-    brightness = 0
-    if (len(validBrightnessIndices) == 0):
-        print("ERROR: Cannot find valid brightness setting :(. Call a GSI over.")
-    else:
-        # Want to use the maximum valid brightness to have the highest possible SNR
-        validBrightnessIdx = validBrightnessIndices[len(validBrightnessIndices) - 1]
-        brightness = brightnesses[validBrightnessIdx]
-        print("Best valid brightness: %s" % brightness)
-    return brightness;
-
-# Inputs
-#  `sRow0Split`: `s` containing an extra row
-# Outputs
-#  `s`: `s` without an extra row
-def getMysteryS(sRow0Split):
-    # Stitch sensor readings 0a and 0b together to get sr0
-    sRow0 = np.sum(sRow0Split[:2], axis = 0)
-    s = np.append([sRow0], sRow0Split[2:], axis = 0)
-    return s;
 
 # OMP ------------------------------------------------------
 
@@ -362,6 +274,7 @@ def simulateCaptureWithNoise(i2D, H, matrixName, sigma):
     noise = np.reshape(noise, (H.shape[0], 1))
     s = idealS + noise
     return s
+    
 
 def simulateIdealCapture(i2D, H, matrixName, display = True):
     # Number of pixels in your image = `iHeight` * `iWidth`
@@ -379,6 +292,15 @@ def simulateIdealCapture(i2D, H, matrixName, display = True):
         plt.title('Ideal Sensor Output, Using %s' % matrixName)
         plt.show()
     return s;
+
+def simulateRealImaging(imagePath, matrix, matrixName, saveName, sigma):
+    
+    #Read image in CWD using PIL (as grayscale) and convert to np array 
+    img_arr = np.array(Image.open(imagePath).convert(mode = 'L'))
+    
+    s_vec = simulateCaptureWithNoise(img_arr, matrix, matrixName, sigma)
+    
+    np.save(saveName + '.npy', s_vec)
 
 def plot_image_noise_visualization(i2D, noise, s, H, title=None):
     M, N = i2D.shape
@@ -469,7 +391,8 @@ def idealReconstruction(H, matrixName, s, X = 32, Y = 32, realImaging = False):
     # Reshape the column vector `i` to display it as a 2D image
     i2D = np.reshape(i, (Y, X))
     # We're going to exclude the top row and left-most column from display
-    plt.imshow(i2D[1:, 1:], cmap = 'gray', interpolation = 'nearest')
+    #plt.imshow(i2D[1:, 1:], cmap = 'gray', interpolation = 'nearest')
+    plt.imshow(i2D, cmap = 'gray', interpolation = 'nearest')
     plt.title('Reconstructed Image, Using %s' % matrixName)
     plt.show()
 
