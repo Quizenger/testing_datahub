@@ -1,14 +1,10 @@
-import sys
 import argparse
 import numpy as np
-import matplotlib
+import sys
 from PIL import Image
 from PIL import ImageQt
 import time
-import glob
-import struct
 
-from matplotlib.backends import qt_compat
 from PyQt5 import QtGui, QtCore, QtWidgets
 
 
@@ -105,7 +101,8 @@ class Mask(QtWidgets.QWidget):
     curr_res = np.reshape(self.sensor_readings, (self.imgHeight, self.imgWidth))
 
     # Conversion to QtImage
-    curr_res = (curr_res * 255).astype(np.uint8)
+    #curr_res = (curr_res * 255).astype(np.uint8)
+    curr_res = (curr_res).astype(np.uint8)
     res = Image.fromarray(curr_res, mode = 'L')
     resQT = ImageQt.ImageQt(res) 
     QI = resQT

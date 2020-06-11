@@ -1,16 +1,10 @@
-import sys
 import argparse
 import numpy as np
-import matplotlib
+import sys
 from PIL import Image
 from PIL import ImageQt
-
-import matplotlib.pyplot as plt
 import time
-import glob
-import struct
 
-from matplotlib.backends import qt_compat
 from PyQt5 import QtGui, QtCore, QtWidgets
 
 
