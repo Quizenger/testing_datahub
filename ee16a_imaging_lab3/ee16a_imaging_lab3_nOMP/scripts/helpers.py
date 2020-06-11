@@ -396,6 +396,22 @@ def idealReconstruction(H, matrixName, s, X = 32, Y = 32, realImaging = False):
     plt.title('Reconstructed Image, Using %s' % matrixName)
     plt.show()
 
+def imageResize(imagePath, saveName, newHeight, newWidth):
+	newSize = (newWidth, newHeight)
+	originalIm = Image.open(imagePath).convert(mode = 'L')		#Opening uploaded image as grayscale
+	(width, height) = originalIm.size
+	region = (0, 0, 0, 0)
+	if width > height:										#Selecting centred square for wide images						
+		diff = width - height
+		region = (diff/2, 0, width - (diff/2), height)
+	elif height > width:									#Selecting centred square for tall images
+		diff = height - width
+		region = (0, diff/2, width, height - (diff/2))		
+	else:
+		region = (0, 0, width, height)
+	newIm = originalIm.resize(newSize, box = region)
+	newIm.save(saveName)									#Saving image in CWD with name saveName, for eg., 'example.png'
+	
 # Inputs
 #  `H1`: First mask matrix to analyze
 #  `matrixName1`: Name of the first matrix for the plot title
