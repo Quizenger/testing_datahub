@@ -109,7 +109,7 @@ class Mask(QtWidgets.QWidget):
     curr_brightness = np.sum(curr_scan)
 
     if self.count <= 10 or self.count % 100 == 0:
-        print("Count: %s, Brightness value: %s\n" % (self.count, curr_brightness))
+        print("Count: %s, Brightness value: %s\n" % (self.count, curr_brightness))    
 
     self.count += 1
 
